@@ -1,68 +1,105 @@
-/ q tick.q sym . -p 5001 </dev/null >foo 2>&1 &
-/2014.03.12 remove license check
-/2013.09.05 warn on corrupt log
-/2013.08.14 allow <endofday> when -u is set
-/2012.11.09 use timestamp type rather than time. -19h/"t"/.z.Z -> -16h/"n"/.z.P
-/2011.02.10 i->i,j to avoid duplicate data if subscription whilst data in buffer
-/2009.07.30 ts day (and "d"$a instead of floor a)
-/2008.09.09 .k -> .q, 2.4
-/2008.02.03 tick/r.k allow no log
-/2007.09.03 check one day flip
-/2006.10.18 check type?
-/2006.07.24 pub then log
-/2006.02.09 fix(2005.11.28) .z.ts end-of-day
-/2006.01.05 @[;`sym;`g#] in tick.k load
-/2005.12.21 tick/r.k reset `g#sym
-/2005.12.11 feed can send .u.endofday
-/2005.11.28 zero-end-of-day
-/2005.10.28 allow`time on incoming
-/2005.10.10 zero latency
-"kdb+tick 2.8 2014.03.12"
+\l lib/u.q                                 / load tick/u.q
 
-/q tick.q SRC [DST] [-p 5010] [-o h]
-system"l tick/",(src:first .z.x,enlist"sym"),".q"
+\d .u                                      / enter .u namespace
 
-if[not system"p";system"p 5010"]
+ld:{[DATE]                                 / .u.ld[DATE]
+  if[not type key L::` sv L,`$string DATE; / if logfile does not exist
+    .[L;();:;()]                           / initialise to empty list
+    ];
+  if[0<=type i::j::-11!(-2;L);             / read log file
+    -2 string[L]," is a corrupt log. Truncate to length ",string[last i]," and restart"; / write error to stderr
+    exit 1                                 / exit with error code
+    ];
+  hopen L                                  / open handle to logfile and return it
+  };
 
-\l tick/u.q
-\d .u
-ld:{if[not type key L::`$(-10_string L),string x;.[L;();:;()]];i::j::-11!(-2;L);if[0<=type i;-2 (string L)," is a corrupt log. Truncate to length ",(string last i)," and restart";exit 1];hopen L};
-tick:{init[];if[not min(`time`sym~2#key flip value@)each t;'`timesym];@[;`sym;`g#]each t;d::.z.D;if[l::count y;L::`$":",y,"/",x,10#".";l::ld d]};
+tick:{[SRC;DST]                            / .u.tick[path;logfile]
+  init[];                                  / call .u.init[] (from tick/u.q)
+  if[not all (min `time`sym in key flip value@) each t; / if tables do not have both a time and sym column
+    '"timesym"                             / throw 'timesym exception
+    ];
+  @[;`sym;`g#]each t;                      / apply grouped attribute to sym column of each table
+  d::.z.D;                                 / set .u.d to local date
+  if[l::count DST;                         / if DST was specified
+    L::`$":",DST,"/",SRC;                  / set .u.L as `:DST/SRC
+    l::ld d                                / load/initialise the logfile
+    ]
+  };
 
-endofday:{end d;d+:1;if[l;hclose l;l::0(`.u.ld;d)]};
-ts:{if[d<x;if[d<x-1;system"t 0";'"more than one day?"];endofday[]]};
+endofday:{[]                               / .u.endofday[]
+  end d;                                   / call .u.end for current date
+  d+:1;                                    / increment date by one
+  if[l;                                    / if we have an open handle to the logfile
+    hclose l;                              / close the handle to the logfile
+    l::0(`.u.ld;d)                         / initialise the new logfile
+    ]
+  };
 
-if[system"t";
- .z.ts:{pub'[t;value each t];@[`.;t;@[;`sym;`g#]0#];i::j;ts .z.D};
- upd:{[t;x]
- if[not -16=type first first x;if[d<"d"$a:.z.P;.z.ts[]];a:"n"$a;x:$[0>type first x;a,x;(enlist(count first x)#a),x]];
- t insert x;if[l;l enlist (`upd;t;x);j+:1];}];
+ts:{[DATE]                                 / .u.ts[DATE]
+  if[d<DATE;                               / if d is older than DATE (i.e. DATE is a new day)
+    if[d<DATE-1;                           / if d is more than 1 day older than DATE
+      system"t 0";                         / stop timer
+      '"more than one day?"                / throw exception
+      ];
+    endofday[]                             / call .u.endofday
+    ]
+  };
 
-if[not system"t";system"t 1000";
- .z.ts:{ts .z.D};
- upd:{[t;x]ts"d"$a:.z.P;
- if[not -16=type first first x;a:"n"$a;x:$[0>type first x;a,x;(enlist(count first x)#a),x]];
- f:key flip value t;pub[t;$[0>type first x;enlist f!x;flip f!x]];if[l;l enlist (`upd;t;x);i+:1];}];
+// batch publishing
+if[system "t";                             / if system timer is set
+ .z.ts:{[]                                 / redefine .z.ts
+    pub'[t;value each t];                  / call .u.pub for every subscriber
+    @[`.;t;@[;`sym;`g#]0#];                / empty each table and then apply grouped attribute on sym
+    i::j;                                  / update .u.i to include published messages
+    ts .z.D                                / call .u.ts with current local date
+    };
+  upd:{[TABLE;DATA]                        / define .u.upd
+    if[not -12=type first first DATA;      / if the type of first item in DATA is not timestamp
+      if[d<"d"$a:.z.P;                     / if local time, cast to date, is greater than .u.d
+        .z.ts[]                            / call .z.ts
+        ];
+      DATA:$[0>type first DATA;            / if DATA is a single list
+        a,DATA;                            / prepend timestamp to DATA
+        enlist[(count first DATA)#a],DATA] / (otherwise list of lists), prepend length-DATA timestamps to DATA
+      ];
+    TABLE insert DATA;                     / insert DATA into TABLE
+    if[l;                                  / if we have an open handle to the logfile
+      l enlist (`upd;TABLE;DATA);          / write update to the logfile
+      j+:1                                 / increment .u.j (total messages including buffer)
+      ];
+     }
+   ];
 
-\d .
+// realtime publishing
+if[not system "t";                         / if system timer is not set
+  system "t 1000";                         / start timer (1 second resolution)
+ .z.ts:{ts .z.D};                          / redefine .z.ts to call ts with current local date
+ upd:{[TABLE;DATA]                         / redefine .u.upd
+    ts "d"$a:.z.P;                         / call .u.ts with current local time
+    if[not -12=type first first DATA;      / if the type of first item in DATA is not timestamp
+      DATA:$[0>type first DATA;            / if DATA is a list
+        a,DATA;                            / prepend timestamp to DATA
+        enlist[(count first DATA)#a],DATA] / prepend length-DATA timestamps to DATA
+      ];
+   f:key flip value TABLE;                 / extract columns from TABLE
+   pub[TABLE;$[0>type first DATA;          / if DATA is a single list
+               enlist f!DATA;              / publish DATA as a table
+               flip f!DATA]];              / (otherwise list of lists), publish as a table
+   if[l;                                   / if we have an open handle to the logfile
+     l enlist (`upd;TABLE;DATA);           / write update to the logfile
+     i+:1                                  / increment .u.i (total messages)
+     ];
+   }
+ ];
+
+\d .                                       / leave .u namespace
+
+/==============================================================
+
+system "l schema/",(src:first .z.x,enlist"sym"),".q" / load schemas from sym.q
+
+if[not system"p";                          / if port is not set
+  system "p 5010"                          / open port 5010
+  ];
+
 .u.tick[src;.z.x 1];
-
-\
- globals used
- .u.w - dictionary of tables->(handle;syms)
- .u.i - msg count in log file
- .u.j - total msg count (log file plus those held in buffer)
- .u.t - table names
- .u.L - tp log filename, e.g. `:./sym2008.09.11
- .u.l - handle to tp log file
- .u.d - date
-
-/test
->q tick.q
->q tick/ssl.q
-
-/run
->q tick.q sym  .  -p 5010	/tick
->q tick/r.q :5010 -p 5011	/rdb
->q sym            -p 5012	/hdb
->q tick/ssl.q sym :5010		/feed

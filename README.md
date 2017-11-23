@@ -1,18 +1,43 @@
-# kdb+tick
+# kdb+tick+
 
-Files previously at code.kx.com/wsvn/kx/kdb+tick
+## Overview of kdb+tick+
 
+Tickerplant code from kxsystems/kdb-tick, formatted into lines, simplified where possible, and given a liberal sprinkle of comments.
 
-## Hot-linking
+## Contains
 
-You are welcome to download and use this code according to the terms of the licence. 
+ - doc/
+ - lib/
+ - schema/
+ - tick.q
+ - r.q
+ - chainedtick.q
+ - chainedr.q
+ - pub.q
 
-Kx Systems recommends you do not link your application to this repository, 
-which would expose your application to various risks:
+## Quickstart
 
-- This is not a high-availability hosting service
-- Updates to the repo may break your application 
-- Code refactoring might return 404s to your application
+```
+$ q tick.q sym .    -p 5010       # tick
+$ q r.q :5010       -p 5011       # rdb
+$ q sym             -p 5012       # hdb
+$ q chainedtick.q   -p 5110       # chained tick
+$ q chainedr.q      -p 5111       # chained tick
+$ q pub.q                         # dummy publisher
+```
 
-Instead, download code and subject it to the version control and regression testing 
-you use for your application.
+## Changes from kdb-tick
+
+**BREAKING**
+Changes that affect processes outside of tick:
+ - `time` column is now expected to be `timestamp`, not `timespan`
+
+**SEMI-BREAKING**
+Changes that affect processes inside of tick:
+ - `.u.w` renamed to `.u.subs`
+ - renamed `.u.m` to `.u.h`, `h` for handle
+
+**NON-BREAKING**
+Changes that are purely internal:
+ - comments... comments everywhere!
+ - whilst `time` and `sym` column are required, they do not need to be the first two columns of a table
