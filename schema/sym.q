@@ -3,4 +3,4 @@
 Book:flip `time`timeExch`sym`exch`bidpx`bidqty`bidtime`askpx`askqty`asktime!"ppss******"$\:();
 Quote:flip `time`timeExch`sym`exch`side`price`qty`action`snapshot!"ppsscffcb"$\:();
 Trade:flip `time`timeExch`sym`exch`side`price`qty!"ppsscff"$\:();
-exchangeRate:flip`FromCurrencyCode`FromCurrencyName`ToCurrencyCode`ToCurrencyName`ExchangeRate`LastRefreshed`TimeZone`BidPrice`AskPrice!"s*s*fpsff"$\:();
+exchangeRate:flip `sym`time`FromCurrencyName`ToCurrencyName`ExchangeRate`TimeZone`BidPrice`AskPrice!"sp**f*ff"$\:();

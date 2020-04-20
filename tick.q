@@ -58,10 +58,6 @@ if[system "t";                             / if system timer is set
       if[d<"d"$a:.z.P;                     / if local time, cast to date, is greater than .u.d
         .z.ts[]                            / call .z.ts
         ];
-      DATA:$[0>type first DATA;            / if DATA is a single list
-        a,DATA;                            / prepend timestamp to DATA
-        enlist[(count first DATA)#a],DATA] / (otherwise list of lists), prepend length-DATA timestamps to DATA
-      ];
     TABLE insert DATA;                     / insert DATA into TABLE
     if[l;                                  / if we have an open handle to the logfile
       l enlist (`upd;TABLE;DATA);          / write update to the logfile
@@ -75,12 +71,7 @@ if[not system "t";                         / if system timer is not set
   system "t 1000";                         / start timer (1 second resolution)
  .z.ts:{ts .z.D};                          / redefine .z.ts to call ts with current local date
  upd:{[TABLE;DATA]                         / redefine .u.upd
-    ts "d"$a:.z.P;                         / call .u.ts with current local time
-    if[not -12=type first first DATA;      / if the type of first item in DATA is not timestamp
-      DATA:$[0>type first DATA;            / if DATA is a list
-        a,DATA;                            / prepend timestamp to DATA
-        enlist[(count first DATA)#a],DATA] / prepend length-DATA timestamps to DATA
-      ];
+   ts "d"$a:.z.P;                         / call .u.ts with current local time
    f:key flip value TABLE;                 / extract columns from TABLE
    pub[TABLE;$[0>type first DATA;          / if DATA is a single list
                enlist f!DATA;              / publish DATA as a table
