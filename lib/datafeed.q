@@ -3,8 +3,11 @@ https://www.alphavantage.co/documentation
 https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=BTC&to_currency=USD&apikey=C60RIVKERB4TWM7C
 \
 
-\p 4999 
-\l schema.q
+
+if[not system "p";                         / if port is not set
+  system "p 4999"                          / listen on port 5110
+  ];
+
 
 if[not "NO"~getenv`KX_SSL_VERIFY_SERVER;
 	show"'KX_SSL_VERIFY_SERVER' variable not set.";
